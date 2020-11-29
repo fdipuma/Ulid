@@ -57,6 +57,46 @@ namespace UlidTests
                 Ulid.Parse(nulid.ToString()).ToByteArray().Should().BeEquivalentTo(nulid.ToByteArray());
             }
         }
+
+        [Fact]
+        public void ParseLowercase()
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                var nulid = NUlid.Ulid.NewUlid();
+                Ulid.Parse(nulid.ToString().ToLowerInvariant()).ToByteArray().Should().BeEquivalentTo(nulid.ToByteArray());
+            }
+        }
+
+        [Theory]
+        [InlineData("L")]
+        [InlineData("l")]
+        public void ToStringLowercase(string format)
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                var ulid = Ulid.NewUlid();
+                var lowerInvariant = ulid.ToString().ToLowerInvariant();
+                
+                lowerInvariant.Should().BeEquivalentTo(ulid.ToString(format), "a lowercase ulid should be formatted");
+            }
+        }
+
+        [Theory]
+        [InlineData("U")]
+        [InlineData("u")]
+        [InlineData(null)]
+        public void ToStringUppercase(string format)
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                var ulid = Ulid.NewUlid();
+                var lowerInvariant = ulid.ToString();
+                
+                lowerInvariant.Should().BeEquivalentTo(ulid.ToString(format), "an uppercase ulid should be formatted");
+            }
+        }
+
         [Fact]
         public void Randomness()
         {

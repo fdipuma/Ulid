@@ -9,6 +9,16 @@ namespace Cysharp.Serialization.Json
 {
     public class UlidJsonConverter : JsonConverter<Ulid>
     {
+        private readonly bool _outputLowercase;
+
+        public UlidJsonConverter() : this(false)
+        { }
+        
+        public UlidJsonConverter(bool outputLowercase)
+        {
+            _outputLowercase = outputLowercase;
+        }
+        
         /// <summary>
         /// Read a Ulid value represented by a string from JSON.
         /// </summary>
@@ -50,7 +60,7 @@ namespace Cysharp.Serialization.Json
         public override void Write(Utf8JsonWriter writer, Ulid value, JsonSerializerOptions options)
         {
             Span<byte> buf = stackalloc byte[26];
-            value.TryWriteStringify(buf);
+            value.TryWriteStringify(buf, _outputLowercase);
             writer.WriteStringValue(buf);
         }
     }

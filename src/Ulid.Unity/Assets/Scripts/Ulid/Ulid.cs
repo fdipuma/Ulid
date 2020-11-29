@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
@@ -18,13 +19,19 @@ namespace System // wa-o, System Namespace!?
 #if NETCOREAPP3_0
     [System.Text.Json.Serialization.JsonConverter(typeof(Cysharp.Serialization.Json.UlidJsonConverter))]
 #endif
-    public partial struct Ulid : IEquatable<Ulid>, IComparable<Ulid>
+    public partial struct Ulid : IEquatable<Ulid>, IComparable<Ulid>, IFormattable
     {
         // https://en.wikipedia.org/wiki/Base32
-        static readonly char[] Base32Text = "0123456789ABCDEFGHJKMNPQRSTVWXYZ".ToCharArray();
-        static readonly byte[] Base32Bytes = Encoding.UTF8.GetBytes(Base32Text);
+        const string Base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+        static readonly char[] Base32TextUppercase = Base32Alphabet.ToCharArray();
+        static readonly char[] Base32TextLowercase = Base32Alphabet.ToLowerInvariant().ToCharArray();
+        static readonly byte[] Base32BytesUppercase = Encoding.UTF8.GetBytes(Base32TextUppercase);
+        static readonly byte[] Base32BytesLowercase = Encoding.UTF8.GetBytes(Base32TextLowercase);
         static readonly byte[] CharToBase32 = new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31 };
         static readonly DateTimeOffset UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        const string UppercaseFormtSpecifier = "U";
+        const string LowercaseFormtSpecifier = "L";
 
         public static readonly Ulid MinValue = new Ulid(UnixEpoch.ToUnixTimeMilliseconds(), new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
 
@@ -315,86 +322,109 @@ namespace System // wa-o, System Namespace!?
             }
         }
 
-        public bool TryWriteStringify(Span<byte> span)
+        public bool TryWriteStringify(Span<byte> span, bool outputLowercase = false)
         {
             if (span.Length < 26) return false;
 
-            span[25] = Base32Bytes[randomness9 & 31]; // eliminate bounds-check of span
+            var base32Bytes = outputLowercase ? Base32BytesLowercase : Base32BytesUppercase;
+            
+            span[25] = base32Bytes[randomness9 & 31]; // eliminate bounds-check of span
 
             // timestamp
-            span[0] = Base32Bytes[(timestamp0 & 224) >> 5];
-            span[1] = Base32Bytes[timestamp0 & 31];
-            span[2] = Base32Bytes[(timestamp1 & 248) >> 3];
-            span[3] = Base32Bytes[((timestamp1 & 7) << 2) | ((timestamp2 & 192) >> 6)];
-            span[4] = Base32Bytes[(timestamp2 & 62) >> 1];
-            span[5] = Base32Bytes[((timestamp2 & 1) << 4) | ((timestamp3 & 240) >> 4)];
-            span[6] = Base32Bytes[((timestamp3 & 15) << 1) | ((timestamp4 & 128) >> 7)];
-            span[7] = Base32Bytes[(timestamp4 & 124) >> 2];
-            span[8] = Base32Bytes[((timestamp4 & 3) << 3) | ((timestamp5 & 224) >> 5)];
-            span[9] = Base32Bytes[timestamp5 & 31];
+            span[0] = base32Bytes[(timestamp0 & 224) >> 5];
+            span[1] = base32Bytes[timestamp0 & 31];
+            span[2] = base32Bytes[(timestamp1 & 248) >> 3];
+            span[3] = base32Bytes[((timestamp1 & 7) << 2) | ((timestamp2 & 192) >> 6)];
+            span[4] = base32Bytes[(timestamp2 & 62) >> 1];
+            span[5] = base32Bytes[((timestamp2 & 1) << 4) | ((timestamp3 & 240) >> 4)];
+            span[6] = base32Bytes[((timestamp3 & 15) << 1) | ((timestamp4 & 128) >> 7)];
+            span[7] = base32Bytes[(timestamp4 & 124) >> 2];
+            span[8] = base32Bytes[((timestamp4 & 3) << 3) | ((timestamp5 & 224) >> 5)];
+            span[9] = base32Bytes[timestamp5 & 31];
 
             // randomness
-            span[10] = Base32Bytes[(randomness0 & 248) >> 3];
-            span[11] = Base32Bytes[((randomness0 & 7) << 2) | ((randomness1 & 192) >> 6)];
-            span[12] = Base32Bytes[(randomness1 & 62) >> 1];
-            span[13] = Base32Bytes[((randomness1 & 1) << 4) | ((randomness2 & 240) >> 4)];
-            span[14] = Base32Bytes[((randomness2 & 15) << 1) | ((randomness3 & 128) >> 7)];
-            span[15] = Base32Bytes[(randomness3 & 124) >> 2];
-            span[16] = Base32Bytes[((randomness3 & 3) << 3) | ((randomness4 & 224) >> 5)];
-            span[17] = Base32Bytes[randomness4 & 31];
-            span[18] = Base32Bytes[(randomness5 & 248) >> 3];
-            span[19] = Base32Bytes[((randomness5 & 7) << 2) | ((randomness6 & 192) >> 6)];
-            span[20] = Base32Bytes[(randomness6 & 62) >> 1];
-            span[21] = Base32Bytes[((randomness6 & 1) << 4) | ((randomness7 & 240) >> 4)];
-            span[22] = Base32Bytes[((randomness7 & 15) << 1) | ((randomness8 & 128) >> 7)];
-            span[23] = Base32Bytes[(randomness8 & 124) >> 2];
-            span[24] = Base32Bytes[((randomness8 & 3) << 3) | ((randomness9 & 224) >> 5)];
+            span[10] = base32Bytes[(randomness0 & 248) >> 3];
+            span[11] = base32Bytes[((randomness0 & 7) << 2) | ((randomness1 & 192) >> 6)];
+            span[12] = base32Bytes[(randomness1 & 62) >> 1];
+            span[13] = base32Bytes[((randomness1 & 1) << 4) | ((randomness2 & 240) >> 4)];
+            span[14] = base32Bytes[((randomness2 & 15) << 1) | ((randomness3 & 128) >> 7)];
+            span[15] = base32Bytes[(randomness3 & 124) >> 2];
+            span[16] = base32Bytes[((randomness3 & 3) << 3) | ((randomness4 & 224) >> 5)];
+            span[17] = base32Bytes[randomness4 & 31];
+            span[18] = base32Bytes[(randomness5 & 248) >> 3];
+            span[19] = base32Bytes[((randomness5 & 7) << 2) | ((randomness6 & 192) >> 6)];
+            span[20] = base32Bytes[(randomness6 & 62) >> 1];
+            span[21] = base32Bytes[((randomness6 & 1) << 4) | ((randomness7 & 240) >> 4)];
+            span[22] = base32Bytes[((randomness7 & 15) << 1) | ((randomness8 & 128) >> 7)];
+            span[23] = base32Bytes[(randomness8 & 124) >> 2];
+            span[24] = base32Bytes[((randomness8 & 3) << 3) | ((randomness9 & 224) >> 5)];
 
             return true;
         }
 
-        public bool TryWriteStringify(Span<char> span)
+        public bool TryWriteStringify(Span<char> span, bool outputLowercase = false)
         {
             if (span.Length < 26) return false;
 
-            span[25] = Base32Text[randomness9 & 31]; // eliminate bounds-check of span
+            var base32Text = outputLowercase ? Base32TextLowercase : Base32TextUppercase;
+
+            span[25] = base32Text[randomness9 & 31]; // eliminate bounds-check of span
 
             // timestamp
-            span[0] = Base32Text[(timestamp0 & 224) >> 5];
-            span[1] = Base32Text[timestamp0 & 31];
-            span[2] = Base32Text[(timestamp1 & 248) >> 3];
-            span[3] = Base32Text[((timestamp1 & 7) << 2) | ((timestamp2 & 192) >> 6)];
-            span[4] = Base32Text[(timestamp2 & 62) >> 1];
-            span[5] = Base32Text[((timestamp2 & 1) << 4) | ((timestamp3 & 240) >> 4)];
-            span[6] = Base32Text[((timestamp3 & 15) << 1) | ((timestamp4 & 128) >> 7)];
-            span[7] = Base32Text[(timestamp4 & 124) >> 2];
-            span[8] = Base32Text[((timestamp4 & 3) << 3) | ((timestamp5 & 224) >> 5)];
-            span[9] = Base32Text[timestamp5 & 31];
+            span[0] = base32Text[(timestamp0 & 224) >> 5];
+            span[1] = base32Text[timestamp0 & 31];
+            span[2] = base32Text[(timestamp1 & 248) >> 3];
+            span[3] = base32Text[((timestamp1 & 7) << 2) | ((timestamp2 & 192) >> 6)];
+            span[4] = base32Text[(timestamp2 & 62) >> 1];
+            span[5] = base32Text[((timestamp2 & 1) << 4) | ((timestamp3 & 240) >> 4)];
+            span[6] = base32Text[((timestamp3 & 15) << 1) | ((timestamp4 & 128) >> 7)];
+            span[7] = base32Text[(timestamp4 & 124) >> 2];
+            span[8] = base32Text[((timestamp4 & 3) << 3) | ((timestamp5 & 224) >> 5)];
+            span[9] = base32Text[timestamp5 & 31];
 
             // randomness
-            span[10] = Base32Text[(randomness0 & 248) >> 3];
-            span[11] = Base32Text[((randomness0 & 7) << 2) | ((randomness1 & 192) >> 6)];
-            span[12] = Base32Text[(randomness1 & 62) >> 1];
-            span[13] = Base32Text[((randomness1 & 1) << 4) | ((randomness2 & 240) >> 4)];
-            span[14] = Base32Text[((randomness2 & 15) << 1) | ((randomness3 & 128) >> 7)];
-            span[15] = Base32Text[(randomness3 & 124) >> 2];
-            span[16] = Base32Text[((randomness3 & 3) << 3) | ((randomness4 & 224) >> 5)];
-            span[17] = Base32Text[randomness4 & 31];
-            span[18] = Base32Text[(randomness5 & 248) >> 3];
-            span[19] = Base32Text[((randomness5 & 7) << 2) | ((randomness6 & 192) >> 6)];
-            span[20] = Base32Text[(randomness6 & 62) >> 1];
-            span[21] = Base32Text[((randomness6 & 1) << 4) | ((randomness7 & 240) >> 4)];
-            span[22] = Base32Text[((randomness7 & 15) << 1) | ((randomness8 & 128) >> 7)];
-            span[23] = Base32Text[(randomness8 & 124) >> 2];
-            span[24] = Base32Text[((randomness8 & 3) << 3) | ((randomness9 & 224) >> 5)];
+            span[10] = base32Text[(randomness0 & 248) >> 3];
+            span[11] = base32Text[((randomness0 & 7) << 2) | ((randomness1 & 192) >> 6)];
+            span[12] = base32Text[(randomness1 & 62) >> 1];
+            span[13] = base32Text[((randomness1 & 1) << 4) | ((randomness2 & 240) >> 4)];
+            span[14] = base32Text[((randomness2 & 15) << 1) | ((randomness3 & 128) >> 7)];
+            span[15] = base32Text[(randomness3 & 124) >> 2];
+            span[16] = base32Text[((randomness3 & 3) << 3) | ((randomness4 & 224) >> 5)];
+            span[17] = base32Text[randomness4 & 31];
+            span[18] = base32Text[(randomness5 & 248) >> 3];
+            span[19] = base32Text[((randomness5 & 7) << 2) | ((randomness6 & 192) >> 6)];
+            span[20] = base32Text[(randomness6 & 62) >> 1];
+            span[21] = base32Text[((randomness6 & 1) << 4) | ((randomness7 & 240) >> 4)];
+            span[22] = base32Text[((randomness7 & 15) << 1) | ((randomness8 & 128) >> 7)];
+            span[23] = base32Text[(randomness8 & 124) >> 2];
+            span[24] = base32Text[((randomness8 & 3) << 3) | ((randomness9 & 224) >> 5)];
 
             return true;
         }
 
-        public override string ToString()
+        public override string ToString() => ToString(UppercaseFormtSpecifier);
+
+        public string ToString(string format) => ToString(format, CultureInfo.InvariantCulture);
+        
+        public string ToString(string format, IFormatProvider formatProvider)
         {
+            bool outputLowerCase;
+
+            if (format == "U" || format == "u" || format is null)
+            {
+                outputLowerCase = false;
+            }
+            else if (format == "L" || format == "l")
+            {
+                outputLowerCase = true;
+            }
+            else
+            {
+                throw new FormatException($"Format {format} not supported");
+            }
+            
             Span<char> span = stackalloc char[26];
-            TryWriteStringify(span);
+            TryWriteStringify(span, outputLowerCase);
             unsafe
             {
                 return new string((char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span)), 0, 26);
