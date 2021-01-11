@@ -30,9 +30,6 @@ namespace System // wa-o, System Namespace!?
         static readonly byte[] CharToBase32 = new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31, 255, 255, 255, 255, 255, 255, 10, 11, 12, 13, 14, 15, 16, 17, 255, 18, 19, 255, 20, 21, 255, 22, 23, 24, 25, 26, 255, 27, 28, 29, 30, 31 };
         static readonly DateTimeOffset UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        const string UppercaseFormtSpecifier = "U";
-        const string LowercaseFormtSpecifier = "L";
-
         public static readonly Ulid MinValue = new Ulid(UnixEpoch.ToUnixTimeMilliseconds(), new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
 
         public static readonly Ulid MaxValue = new Ulid(DateTimeOffset.MaxValue.ToUnixTimeMilliseconds(), new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 });
@@ -402,14 +399,25 @@ namespace System // wa-o, System Namespace!?
             return true;
         }
 
-        public override string ToString() => ToString(UppercaseFormtSpecifier);
+        public override string ToString() => ToString(null);
 
         public string ToString(string format) => ToString(format, CultureInfo.InvariantCulture);
         
         public string ToString(string format, IFormatProvider formatProvider)
         {
-            bool outputLowerCase;
+            var outputLowerCase = ParseFormatString(format);
+            
+            Span<char> span = stackalloc char[26];
+            TryWriteStringify(span, outputLowerCase);
+            unsafe
+            {
+                return new string((char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span)), 0, 26);
+            }
+        }
 
+        private static bool ParseFormatString(string format)
+        {
+            bool outputLowerCase;
             if (format == "U" || format == "u" || format is null)
             {
                 outputLowerCase = false;
@@ -422,13 +430,8 @@ namespace System // wa-o, System Namespace!?
             {
                 throw new FormatException($"Format {format} not supported");
             }
-            
-            Span<char> span = stackalloc char[26];
-            TryWriteStringify(span, outputLowerCase);
-            unsafe
-            {
-                return new string((char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span)), 0, 26);
-            }
+
+            return outputLowerCase;
         }
 
         // Comparable/Equatable
